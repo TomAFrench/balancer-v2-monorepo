@@ -30,8 +30,6 @@ interface IAssetManager {
 
     function readAUM() external view returns (uint256);
 
-    function realizeGains() external;
-
     function maxInvestableBalance(bytes32 poolId) external view returns (int256);
 
     function getRebalanceFee(bytes32 poolId) external view returns (uint256);

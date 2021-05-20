@@ -39,9 +39,6 @@ abstract contract SinglePoolAssetManager is IAssetManager {
     /// @notice The token which this asset manager is investing
     IERC20 public immutable token;
 
-    /// @notice the total AUM of tokens that the asset manager is aware it has earned
-    uint256 public totalAUM;
-
     PoolConfig private _poolConfig;
 
     constructor(
@@ -97,7 +94,6 @@ abstract contract SinglePoolAssetManager is IAssetManager {
 
     /**
      * @notice Updates the Vault on the value of the pool's investment returns
-     * @dev To be called following a call to realizeGains
      */
     function updateBalanceOfPool(bytes32 pId) public override correctPool(pId) {
         uint256 managedBalance = readAUM();
@@ -135,9 +131,6 @@ abstract contract SinglePoolAssetManager is IAssetManager {
         vault.managePoolBalance(ops);
 
         _invest(amount, aum);
-
-        // Update with gains and add deposited tokens from AUM
-        totalAUM = aum.add(amount);
     }
 
     /**
@@ -153,13 +146,11 @@ abstract contract SinglePoolAssetManager is IAssetManager {
         require(maxAmountOut >= amount.toInt256(), "withdrawal leaves insufficient balance invested");
 
         // Update with gains and remove withdrawn tokens from AUM
-        totalAUM = aum.sub(amount);
-
         IVault.PoolBalanceOp[] memory ops = new IVault.PoolBalanceOp[](2);
         // Send funds back to the vault
         ops[0] = IVault.PoolBalanceOp(IVault.PoolBalanceOpKind.DEPOSIT, poolId, token, amount);
         // Update the vault with new managed balance accounting for returns
-        ops[1] = IVault.PoolBalanceOp(IVault.PoolBalanceOpKind.UPDATE, poolId, token, totalAUM);
+        ops[1] = IVault.PoolBalanceOp(IVault.PoolBalanceOpKind.UPDATE, poolId, token, aum.sub(amount));
 
         vault.managePoolBalance(ops);
     }
@@ -274,16 +265,9 @@ abstract contract SinglePoolAssetManager is IAssetManager {
     }
 
     /**
-     * @notice Checks invested balance and updates AUM appropriately
-     */
-    function realizeGains() public override {
-        totalAUM = readAUM();
-    }
-
-    /**
      * @notice Returns invested balance
      */
     function balanceOf(bytes32 pId) public view override correctPool(pId) returns (uint256) {
-        return totalAUM;
+        return readAUM();
     }
 }
