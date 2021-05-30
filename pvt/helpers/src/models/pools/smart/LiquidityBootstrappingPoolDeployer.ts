@@ -18,13 +18,13 @@ export default {
     const vault = await VaultDeployer.deploy(TypesConverter.toRawVaultDeployment(params));
     const pool = await (params.fromFactory ? this._deployFromFactory : this._deployStandalone)(deployment, vault);
 
-    const { tokens, weights, swapFeePercentage } = deployment;
+    const { tokens, weights, swapFeePercentage, minWeightChangeDuration, initialPublicSwap } = deployment;
     const poolId = await pool.getPoolId();
-    return new LiquidityBootstrappingPool(pool, poolId, vault, tokens, weights, swapFeePercentage);
+    return new LiquidityBootstrappingPool(pool, poolId, vault, tokens, weights, swapFeePercentage, minWeightChangeDuration, initialPublicSwap);
   },
 
   async _deployStandalone(params: LiquidityBootstrappingPoolDeployment, vault: Vault): Promise<Contract> {
-    const { tokens, weights, swapFeePercentage, pauseWindowDuration, bufferPeriodDuration, owner, from } = params;
+    const { tokens, weights, swapFeePercentage, pauseWindowDuration, bufferPeriodDuration, owner, minWeightChangeDuration, initialPublicSwap, from } = params;
     return deploy('v2-pool-smart/LiquidityBootstrappingPool', {
       args: [
         vault.address,
@@ -36,13 +36,15 @@ export default {
         pauseWindowDuration,
         bufferPeriodDuration,
         TypesConverter.toAddress(owner),
+        minWeightChangeDuration,
+        initialPublicSwap
       ],
       from,
     });
   },
 
   async _deployFromFactory(params: LiquidityBootstrappingPoolDeployment, vault: Vault): Promise<Contract> {
-    const { tokens, weights, swapFeePercentage, owner, from } = params;
+    const { tokens, weights, swapFeePercentage, owner, minWeightChangeDuration, initialPublicSwap, from } = params;
     const factory = await deploy('v2-pool-smart/LiquidityBootstrappingPoolFactory', { args: [vault.address], from });
 
     const tx = await factory.create(
@@ -51,7 +53,9 @@ export default {
       tokens.addresses,
       weights,
       swapFeePercentage,
-      TypesConverter.toAddress(owner)
+      TypesConverter.toAddress(owner),
+      minWeightChangeDuration,
+      initialPublicSwap
     );
     const receipt = await tx.wait();
     const event = expectEvent.inReceipt(receipt, 'PoolCreated');

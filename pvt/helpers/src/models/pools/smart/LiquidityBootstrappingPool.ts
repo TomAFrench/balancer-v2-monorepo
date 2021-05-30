@@ -54,6 +54,8 @@ export default class LiquidityBootstrappingPool {
   tokens: TokenList;
   weights: BigNumberish[];
   swapFeePercentage: BigNumberish;
+  minWeightChangeDuration: number;
+  initialPublicSwap: boolean;
   vault: Vault;
 
   static async create(params: RawLiquidityBootstrappingPoolDeployment = {}): Promise<LiquidityBootstrappingPool> {
@@ -66,7 +68,9 @@ export default class LiquidityBootstrappingPool {
     vault: Vault,
     tokens: TokenList,
     weights: BigNumberish[],
-    swapFeePercentage: BigNumberish
+    swapFeePercentage: BigNumberish,
+    minWeightChangeDuration: number,
+    initialPublicSwap: boolean
   ) {
     this.instance = instance;
     this.poolId = poolId;
@@ -74,6 +78,8 @@ export default class LiquidityBootstrappingPool {
     this.tokens = tokens;
     this.weights = weights;
     this.swapFeePercentage = swapFeePercentage;
+    this.minWeightChangeDuration = minWeightChangeDuration;
+    this.initialPublicSwap = initialPublicSwap;
   }
 
   get address(): string {

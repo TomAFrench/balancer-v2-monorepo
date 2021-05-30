@@ -18,6 +18,8 @@ describe('LiquidityBootstrappingPool', function () {
   const POOL_SWAP_FEE_PERCENTAGE = fp(0.01);
   const WEIGHTS = [fp(30), fp(70), fp(5), fp(5)];
   const INITIAL_BALANCES = [fp(0.9), fp(1.8), fp(2.7), fp(3.6)];
+  const MINIMUM_WEIGHT_CHANGE_DURATION = 10;
+  const INITIAL_PUBLIC_SWAP = true;
 
   before('setup signers', async () => {
     [, lp, trader, recipient, other, owner] = await ethers.getSigners();
@@ -63,7 +65,18 @@ describe('LiquidityBootstrappingPool', function () {
     const initialBalances = INITIAL_BALANCES.slice(0, numberOfTokens);
 
     async function deployPool(params: RawLiquidityBootstrappingPoolDeployment = {}): Promise<void> {
-      params = Object.assign({}, { tokens, weights, swapFeePercentage: POOL_SWAP_FEE_PERCENTAGE, owner }, params);
+      params = Object.assign(
+        {},
+        {
+          tokens,
+          weights,
+          swapFeePercentage: POOL_SWAP_FEE_PERCENTAGE,
+          owner,
+          MINIMUM_WEIGHT_CHANGE_DURATION,
+          INITIAL_PUBLIC_SWAP,
+        },
+        params
+      );
       pool = await LiquidityBootstrappingPool.create(params);
     }
 

@@ -13,6 +13,8 @@ export type RawLiquidityBootstrappingPoolDeployment = {
   swapFeePercentage?: BigNumberish;
   pauseWindowDuration?: BigNumberish;
   bufferPeriodDuration?: BigNumberish;
+  minWeightChangeDuration?: number;
+  initialPublicSwap?: boolean;
   owner?: Account;
   admin?: SignerWithAddress;
   from?: SignerWithAddress;
@@ -26,6 +28,8 @@ export type LiquidityBootstrappingPoolDeployment = {
   pauseWindowDuration: BigNumberish;
   bufferPeriodDuration: BigNumberish;
   owner: Account;
+  minWeightChangeDuration: number;
+  initialPublicSwap: boolean;
   admin?: SignerWithAddress;
   from?: SignerWithAddress;
 };

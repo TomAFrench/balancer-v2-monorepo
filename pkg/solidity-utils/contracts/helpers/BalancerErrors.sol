@@ -130,6 +130,10 @@ library Errors {
     uint256 internal constant ORACLE_QUERY_TOO_OLD = 314;
     uint256 internal constant ORACLE_INVALID_INDEX = 315;
     uint256 internal constant ORACLE_BAD_SECS = 316;
+    uint256 internal constant GRADUAL_UPDATE_TIME_TRAVEL = 317;
+    uint256 internal constant WEIGHT_CHANGE_TIME_BELOW_MIN = 318;
+    uint256 internal constant CALLER_NOT_OWNER = 319;
+    uint256 internal constant SWAPS_PAUSED = 320;
 
     // Lib
     uint256 internal constant REENTRANCY = 400;
