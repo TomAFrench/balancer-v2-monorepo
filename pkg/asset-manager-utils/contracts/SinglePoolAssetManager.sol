@@ -23,6 +23,7 @@ import "./IAssetManager.sol";
 pragma solidity ^0.7.0;
 pragma experimental ABIEncoderV2;
 
+// solhint-disable private-vars-leading-underscore
 abstract contract SinglePoolAssetManager is IAssetManager {
     using Math for uint256;
     using SafeCast for uint256;
@@ -43,7 +44,11 @@ abstract contract SinglePoolAssetManager is IAssetManager {
 
     PoolConfig private _poolConfig;
 
-    constructor(IVault _vault, bytes32 _poolId, address _token) {
+    constructor(
+        IVault _vault,
+        bytes32 _poolId,
+        address _token
+    ) {
         IERC20(_token).approve(address(_vault), type(uint256).max);
         vault = _vault;
         poolId = _poolId;
@@ -69,8 +74,7 @@ abstract contract SinglePoolAssetManager is IAssetManager {
      * @return The difference in token between the target investment
      * and the currently invested amount (i.e. the amount that can be invested)
      */
-    function maxInvestableBalance(
-    ) public view returns (int256) {
+    function maxInvestableBalance() public view returns (int256) {
         return _maxInvestableBalance(readAUM());
     }
 
@@ -90,12 +94,15 @@ abstract contract SinglePoolAssetManager is IAssetManager {
      * @notice Updates the Vault on the value of the pool's investment returns
      * @dev To be called following a call to realizeGains
      */
-    function updateBalanceOfPool(
-    ) public {
+    function updateBalanceOfPool() public {
         uint256 managedBalance = readAUM();
 
-        IVault.PoolBalanceOp memory transfer =
-            IVault.PoolBalanceOp(IVault.PoolBalanceOpKind.UPDATE, poolId, token, managedBalance);
+        IVault.PoolBalanceOp memory transfer = IVault.PoolBalanceOp(
+            IVault.PoolBalanceOpKind.UPDATE,
+            poolId,
+            token,
+            managedBalance
+        );
         IVault.PoolBalanceOp[] memory ops = new IVault.PoolBalanceOp[](1);
         ops[0] = (transfer);
 
@@ -108,9 +115,7 @@ abstract contract SinglePoolAssetManager is IAssetManager {
      * @dev Transfers capital into the asset manager, and then invests it
      * @param amount - the amount of tokens being deposited
      */
-    function capitalIn(
-        uint256 amount
-    ) public {
+    function capitalIn(uint256 amount) public {
         uint256 aum = readAUM();
 
         int256 maxAmountIn = _maxInvestableBalance(aum);
@@ -134,9 +139,7 @@ abstract contract SinglePoolAssetManager is IAssetManager {
      * @notice Divests capital back to the asset manager and then sends it to the vault
      * @param amount - the amount of tokens to withdraw to the vault
      */
-    function capitalOut(
-        uint256 amount
-    ) public {
+    function capitalOut(uint256 amount) public {
         uint256 aum = readAUM();
 
         _divest(amount, aum);
@@ -162,20 +165,14 @@ abstract contract SinglePoolAssetManager is IAssetManager {
      * @param aum - the assets under management
      * @return the number of tokens that were deposited
      */
-    function _invest(
-        uint256 amount,
-        uint256 aum
-    ) internal virtual returns (uint256);
+    function _invest(uint256 amount, uint256 aum) internal virtual returns (uint256);
 
     /**
      * @dev Divests capital back to the asset manager
      * @param amount - the amount of tokens being withdrawn
      * @return the number of tokens to return to the vault
      */
-    function _divest(
-        uint256 amount,
-        uint256 aum
-    ) internal virtual returns (uint256);
+    function _divest(uint256 amount, uint256 aum) internal virtual returns (uint256);
 
     /**
      * @return the current assets under management of this asset manager
@@ -195,12 +192,7 @@ abstract contract SinglePoolAssetManager is IAssetManager {
         return _poolConfig;
     }
 
-
-    function _getPoolBalances(uint256 aum)
-        internal
-        view
-        returns (uint256 poolCash, uint256 poolManaged)
-    {
+    function _getPoolBalances(uint256 aum) internal view returns (uint256 poolCash, uint256 poolManaged) {
         (poolCash, , , ) = vault.getPoolTokenInfo(poolId, token);
         // Calculate the managed portion of funds locally as the Vault is unaware of returns
         poolManaged = aum;

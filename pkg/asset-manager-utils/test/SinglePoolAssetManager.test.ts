@@ -7,7 +7,7 @@ import TokenList from '@balancer-labs/v2-helpers/src/models/tokens/TokenList';
 import { encodeJoin } from '@balancer-labs/v2-helpers/src/models/pools/mockPool';
 
 import { bn, fp } from '@balancer-labs/v2-helpers/src/numbers';
-import { MAX_UINT256 } from'@balancer-labs/v2-helpers/src/constants';
+import { MAX_UINT256 } from '@balancer-labs/v2-helpers/src/constants';
 import { GeneralPool } from '@balancer-labs/v2-helpers/src/models/vault/pools';
 
 import { deploy } from '@balancer-labs/v2-helpers/src/contract';
@@ -67,10 +67,10 @@ describe('Single Pool Asset Manager', function () {
   });
 
   it('allows a pool controller to set the desired target investable %', async () => {
-    const expectedTarget = fp(0.8);
+    const targetPercentage = fp(0.2);
     const poolController = lp; // TODO
 
-    const updatedConfig = { targetPercentage: fp(0.2), criticalPercentage: 0, feePercentage: 0 };
+    const updatedConfig = { targetPercentage, criticalPercentage: 0, feePercentage: 0 };
     await assetManager.connect(poolController).setPoolConfig(poolId, updatedConfig);
 
     const result = await assetManager.getPoolConfig();
@@ -104,7 +104,7 @@ describe('Single Pool Asset Manager', function () {
       await assetManager.connect(lp).capitalIn(amount);
       expect((await vault.getPoolTokenInfo(poolId, tokens.DAI.address)).assetManager).to.equal(assetManager.address);
 
-      const configNoInvestment = { targetPercentage: 0, criticalPercentage: 0, feePercentage: 0 }
+      const configNoInvestment = { targetPercentage: 0, criticalPercentage: 0, feePercentage: 0 };
       await assetManager.connect(poolController).setPoolConfig(poolId, configNoInvestment);
 
       result = await assetManager.maxInvestableBalance();
@@ -122,7 +122,7 @@ describe('Single Pool Asset Manager', function () {
 
       const amountToWithdraw = amount.mul(bn(89)).div(bn(100));
 
-      const configNoInvestment = { targetPercentage: 0, criticalPercentage: 0, feePercentage: 0 }
+      const configNoInvestment = { targetPercentage: 0, criticalPercentage: 0, feePercentage: 0 };
       await assetManager.connect(poolController).setPoolConfig(poolId, configNoInvestment);
 
       await expectBalanceChange(() => assetManager.connect(lp).capitalOut(amountToWithdraw), tokens, [
@@ -143,9 +143,7 @@ describe('Single Pool Asset Manager', function () {
     it('prevents depositing pool assets to an investment manager over the target investable %', async () => {
       const amountToDeposit = tokenInitialBalance.mul(bn(99)).div(bn(100));
 
-      expect(assetManager.connect(lp).capitalIn(amountToDeposit)).to.be.revertedWith(
-        OVER_INVESTMENT_REVERT_REASON
-      );
+      expect(assetManager.connect(lp).capitalIn(amountToDeposit)).to.be.revertedWith(OVER_INVESTMENT_REVERT_REASON);
     });
 
     it("updates the pool's managed balance", async () => {

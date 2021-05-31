@@ -44,10 +44,7 @@ contract SinglePoolTestAssetManager is SinglePoolAssetManager {
      * @param aum - the current assets under management of this asset manager
      * @return the number of shares to mint for the pool
      */
-    function _invest(
-        uint256 amount,
-        uint256 aum
-    ) internal override returns (uint256) {
+    function _invest(uint256 amount, uint256 aum) internal override returns (uint256) {
         nextAUM = aum + amount;
         return amount;
     }
@@ -56,10 +53,7 @@ contract SinglePoolTestAssetManager is SinglePoolAssetManager {
      * @param amount - the amount of tokens being divested
      * @return the number of tokens to return to the vault
      */
-    function _divest(
-        uint256 amount,
-        uint256 aum
-    ) internal override returns (uint256) {
+    function _divest(uint256 amount, uint256 aum) internal override returns (uint256) {
         nextAUM = aum - amount;
         return amount;
     }
