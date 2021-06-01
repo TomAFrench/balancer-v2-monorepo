@@ -223,9 +223,16 @@ contract LiquidityBootstrappingPool is BaseWeightedPool, ReentrancyGuard {
      */
     function _fixCurrentNormalizedWeights(uint256 currentTime) internal {
         if (gradualUpdateParams.startTime != 0) {
-            uint256[] memory normalizedWeights = _getDynamicWeights(currentTime);
-            for (uint8 i = 0; i < _getTotalTokens(); i++) {
-                _setNormalizedWeight(normalizedWeights[i], i);
+            // It could be over but nothing called pokeWeights, in which case just set them directly
+            if (currentTime >= gradualUpdateParams.endTime) {
+                 _normalizedWeights = gradualUpdateParams.endWeights;
+            }
+            else {
+                // If it's still ongoing, need to use the dynamic weights
+                uint256[] memory normalizedWeights = _getDynamicWeights(currentTime);
+                for (uint8 i = 0; i < _getTotalTokens(); i++) {
+                    _setNormalizedWeight(normalizedWeights[i], i);
+                }
             }
 
             gradualUpdateParams.startTime = 0;
@@ -368,7 +375,7 @@ contract LiquidityBootstrappingPool is BaseWeightedPool, ReentrancyGuard {
         SwapRequest memory swapRequest,
         uint256 currentBalanceTokenIn,
         uint256 currentBalanceTokenOut
-    ) internal view virtual override whenNotPaused returns (uint256) {
+    ) internal view override whenNotPaused returns (uint256) {
         // Swaps are disabled while the contract is paused.
         _require(publicSwapEnabled, Errors.SWAPS_PAUSED);
 
@@ -379,7 +386,7 @@ contract LiquidityBootstrappingPool is BaseWeightedPool, ReentrancyGuard {
         SwapRequest memory swapRequest,
         uint256 currentBalanceTokenIn,
         uint256 currentBalanceTokenOut
-    ) internal view virtual override whenNotPaused returns (uint256) {
+    ) internal view override whenNotPaused returns (uint256) {
         // Swaps are disabled while the contract is paused.
         _require(publicSwapEnabled, Errors.SWAPS_PAUSED);
 
