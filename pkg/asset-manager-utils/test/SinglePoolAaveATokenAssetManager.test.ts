@@ -147,15 +147,23 @@ describe('Single Pool Aave AToken asset manager', function () {
   });
 
   describe('setPoolConfig', () => {
-    it('allows a pool controller to set the desired target investable %', async () => {
+    it('allows a pool controller to set the desired target investment config', async () => {
       const targetPercentage = fp(0.8);
       const poolController = lp; // TODO
-      await assetManager
-        .connect(poolController)
-        .setPoolConfig(poolId, { targetPercentage, criticalPercentage: 0, feePercentage: 0 });
+      const updatedConfig = {
+        targetPercentage,
+        upperCriticalPercentage: fp(1),
+        lowerCriticalPercentage: fp(0),
+        feePercentage: fp(0.001),
+      };
+
+      await assetManager.connect(poolController).setPoolConfig(poolId, updatedConfig);
 
       const result = await assetManager.getPoolConfig(poolId);
-      expect(result.targetPercentage).to.equal(targetPercentage);
+      expect(result.targetPercentage).to.equal(updatedConfig.targetPercentage);
+      expect(result.upperCriticalPercentage).to.equal(updatedConfig.upperCriticalPercentage);
+      expect(result.lowerCriticalPercentage).to.equal(updatedConfig.lowerCriticalPercentage);
+      expect(result.feePercentage).to.equal(updatedConfig.feePercentage);
     });
   });
 
@@ -165,9 +173,12 @@ describe('Single Pool Aave AToken asset manager', function () {
 
     beforeEach(async () => {
       poolController = lp; // TODO
-      await assetManager
-        .connect(poolController)
-        .setPoolConfig(poolId, { targetPercentage, criticalPercentage: 0, feePercentage: 0 });
+      await assetManager.connect(poolController).setPoolConfig(poolId, {
+        targetPercentage,
+        upperCriticalPercentage: fp(1),
+        lowerCriticalPercentage: 0,
+        feePercentage: 0,
+      });
     });
 
     describe('capitalIn', () => {
@@ -233,9 +244,12 @@ describe('Single Pool Aave AToken asset manager', function () {
     beforeEach(async () => {
       const investablePercent = fp(0.9);
       poolController = lp; // TODO
-      await assetManager
-        .connect(poolController)
-        .setPoolConfig(poolId, { targetPercentage: investablePercent, criticalPercentage: 0, feePercentage: 0 });
+      await assetManager.connect(poolController).setPoolConfig(poolId, {
+        targetPercentage: investablePercent,
+        upperCriticalPercentage: fp(1),
+        lowerCriticalPercentage: 0,
+        feePercentage: 0,
+      });
 
       await assetManager.connect(poolController).capitalIn(poolId, amountToDeposit);
 
@@ -246,7 +260,6 @@ describe('Single Pool Aave AToken asset manager', function () {
       // Simulate a return on asset manager's investment
       const amountReturned = amountToDeposit.div(10);
       await lendingPool.connect(lp).simulateATokenIncrease(tokens.DAI.address, amountReturned, assetManager.address);
-      await assetManager.connect(lp).realizeGains();
 
       await assetManager.connect(lp).updateBalanceOfPool(poolId);
     });

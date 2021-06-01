@@ -182,7 +182,7 @@ abstract contract AssetManager is IAssetManager {
      * @notice Updates the Vault on the value of the pool's investment returns
      * @param poolId - the id of the pool for which to update the balance
      */
-    function updateBalanceOfPool(bytes32 poolId) public {
+    function updateBalanceOfPool(bytes32 poolId) public override {
         IVault.PoolBalanceOp[] memory ops = new IVault.PoolBalanceOp[](1);
         ops[0] = IVault.PoolBalanceOp(IVault.PoolBalanceOpKind.UPDATE, poolId, token, balanceOf(poolId));
 

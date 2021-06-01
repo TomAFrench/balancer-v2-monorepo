@@ -67,15 +67,21 @@ describe('Single Pool Asset Manager', function () {
   });
 
   it('allows a pool controller to set the desired target investable %', async () => {
-    const targetPercentage = fp(0.2);
     const poolController = lp; // TODO
 
-    const updatedConfig = { targetPercentage, criticalPercentage: 0, feePercentage: 0 };
+    const updatedConfig = {
+      targetPercentage: 3,
+      upperCriticalPercentage: 4,
+      lowerCriticalPercentage: 2,
+      feePercentage: 1,
+    };
+
     await assetManager.connect(poolController).setPoolConfig(poolId, updatedConfig);
 
     const result = await assetManager.getPoolConfig(poolId);
     expect(result.targetPercentage).to.equal(updatedConfig.targetPercentage);
-    expect(result.criticalPercentage).to.equal(updatedConfig.criticalPercentage);
+    expect(result.upperCriticalPercentage).to.equal(updatedConfig.upperCriticalPercentage);
+    expect(result.lowerCriticalPercentage).to.equal(updatedConfig.lowerCriticalPercentage);
     expect(result.feePercentage).to.equal(updatedConfig.feePercentage);
   });
 
@@ -85,9 +91,12 @@ describe('Single Pool Asset Manager', function () {
 
     beforeEach(async () => {
       poolController = lp; // TODO
-      await assetManager
-        .connect(poolController)
-        .setPoolConfig(poolId, { targetPercentage, criticalPercentage: 0, feePercentage: 0 });
+      await assetManager.connect(poolController).setPoolConfig(poolId, {
+        targetPercentage,
+        upperCriticalPercentage: fp(1),
+        lowerCriticalPercentage: 0,
+        feePercentage: 0,
+      });
     });
 
     it('transfers only the requested token from the vault to the lending pool via the manager', async () => {
@@ -104,7 +113,12 @@ describe('Single Pool Asset Manager', function () {
       await assetManager.connect(lp).capitalIn(poolId, amount);
       expect((await vault.getPoolTokenInfo(poolId, tokens.DAI.address)).assetManager).to.equal(assetManager.address);
 
-      const configNoInvestment = { targetPercentage: 0, criticalPercentage: 0, feePercentage: 0 };
+      const configNoInvestment = {
+        targetPercentage: 0,
+        upperCriticalPercentage: fp(1),
+        lowerCriticalPercentage: 0,
+        feePercentage: 0,
+      };
       await assetManager.connect(poolController).setPoolConfig(poolId, configNoInvestment);
 
       result = await assetManager.maxInvestableBalance(poolId);
@@ -122,7 +136,12 @@ describe('Single Pool Asset Manager', function () {
 
       const amountToWithdraw = amount.mul(bn(89)).div(bn(100));
 
-      const configNoInvestment = { targetPercentage: 0, criticalPercentage: 0, feePercentage: 0 };
+      const configNoInvestment = {
+        targetPercentage: 0,
+        upperCriticalPercentage: fp(1),
+        lowerCriticalPercentage: 0,
+        feePercentage: 0,
+      };
       await assetManager.connect(poolController).setPoolConfig(poolId, configNoInvestment);
 
       await expectBalanceChange(() => assetManager.connect(lp).capitalOut(poolId, amountToWithdraw), tokens, [
@@ -175,7 +194,6 @@ describe('Single Pool Asset Manager', function () {
           const aum = await assetManager.readAUM();
           const newAUM = aum.mul(11).div(10);
           await assetManager.connect(lp).setUnrealisedAUM(newAUM);
-          await assetManager.connect(lp).realizeGains();
 
           await assetManager.connect(lp).updateBalanceOfPool(poolId);
         });

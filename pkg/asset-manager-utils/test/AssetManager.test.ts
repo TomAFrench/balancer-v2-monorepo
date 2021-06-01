@@ -80,7 +80,7 @@ const setup = async () => {
   });
 
   // Deploy Pool for liquidating fees
-  const swapPool = await deploy('@balancer-labs/v2-vault/test/MockPool', { args: [vault.address, GeneralPool] });
+  const swapPool = await deploy('v2-vault/MockPool', { args: [vault.address, GeneralPool] });
   const swapPoolId = await swapPool.getPoolId();
 
   await swapPool.registerTokens(tokens.addresses, [ZERO_ADDRESS, ZERO_ADDRESS]);
