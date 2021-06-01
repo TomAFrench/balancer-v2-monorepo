@@ -93,7 +93,7 @@ abstract contract AssetManager is IAssetManager {
         return _poolConfig[poolId];
     }
 
-    //function setInvestablePercent(bytes32 poolId, uint256 investmentPercent) external onlyPoolController(poolId) {
+    // TODO restrict access with onlyPoolController
     function setPoolConfig(bytes32 poolId, PoolConfig calldata config) external override {
         require(config.targetPercentage <= ONE, "Investment target must be less than 100%");
         require(config.criticalPercentage <= config.targetPercentage, "Critical level must be less than target");

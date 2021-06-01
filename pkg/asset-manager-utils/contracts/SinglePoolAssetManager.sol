@@ -184,6 +184,7 @@ abstract contract SinglePoolAssetManager is IAssetManager {
      */
     function readAUM() public view virtual override returns (uint256);
 
+    // TODO restrict access with onlyPoolController
     function setPoolConfig(bytes32 pId, PoolConfig calldata config) external override correctPool(pId) {
         require(pId == poolId, "poolId mismatch");
         require(config.targetPercentage <= ONE, "Investment target must be less than 100%");
