@@ -25,7 +25,7 @@ contract MockAToken is ERC20 {
         address admin,
         string memory name,
         string memory symbol,
-        uint8 decimals
+        uint8 /*decimals */
     ) ERC20(name, symbol) {
         owner = admin;
     }

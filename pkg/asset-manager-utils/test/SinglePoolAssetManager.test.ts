@@ -73,7 +73,7 @@ describe('Single Pool Asset Manager', function () {
     const updatedConfig = { targetPercentage, criticalPercentage: 0, feePercentage: 0 };
     await assetManager.connect(poolController).setPoolConfig(poolId, updatedConfig);
 
-    const result = await assetManager.getPoolConfig();
+    const result = await assetManager.getPoolConfig(poolId);
     expect(result.targetPercentage).to.equal(updatedConfig.targetPercentage);
     expect(result.criticalPercentage).to.equal(updatedConfig.criticalPercentage);
     expect(result.feePercentage).to.equal(updatedConfig.feePercentage);
@@ -91,26 +91,26 @@ describe('Single Pool Asset Manager', function () {
     });
 
     it('transfers only the requested token from the vault to the lending pool via the manager', async () => {
-      await expectBalanceChange(() => assetManager.connect(lp).capitalIn(amount), tokens, [
+      await expectBalanceChange(() => assetManager.connect(lp).capitalIn(poolId, amount), tokens, [
         { account: assetManager.address, changes: { DAI: amount } },
         { account: vault.address, changes: { DAI: -amount } },
       ]);
     });
 
     it('transfers the requested token from the lending pool to the vault', async () => {
-      let result = await assetManager.maxInvestableBalance();
+      let result = await assetManager.maxInvestableBalance(poolId);
       expect(result).to.equal(tokenInitialBalance.mul(9).div(10));
 
-      await assetManager.connect(lp).capitalIn(amount);
+      await assetManager.connect(lp).capitalIn(poolId, amount);
       expect((await vault.getPoolTokenInfo(poolId, tokens.DAI.address)).assetManager).to.equal(assetManager.address);
 
       const configNoInvestment = { targetPercentage: 0, criticalPercentage: 0, feePercentage: 0 };
       await assetManager.connect(poolController).setPoolConfig(poolId, configNoInvestment);
 
-      result = await assetManager.maxInvestableBalance();
+      result = await assetManager.maxInvestableBalance(poolId);
       expect(result).to.equal(bn(-100e18));
 
-      await expectBalanceChange(() => assetManager.connect(lp).capitalOut(amount), tokens, [
+      await expectBalanceChange(() => assetManager.connect(lp).capitalOut(poolId, amount), tokens, [
         { account: assetManager.address, changes: { DAI: -amount } },
         { account: vault.address, changes: { DAI: amount } },
       ]);
@@ -118,14 +118,14 @@ describe('Single Pool Asset Manager', function () {
 
     it('allows anyone to withdraw assets to a pool to get to the target investable %', async () => {
       // be overinvested
-      await assetManager.connect(lp).capitalIn(amount);
+      await assetManager.connect(lp).capitalIn(poolId, amount);
 
       const amountToWithdraw = amount.mul(bn(89)).div(bn(100));
 
       const configNoInvestment = { targetPercentage: 0, criticalPercentage: 0, feePercentage: 0 };
       await assetManager.connect(poolController).setPoolConfig(poolId, configNoInvestment);
 
-      await expectBalanceChange(() => assetManager.connect(lp).capitalOut(amountToWithdraw), tokens, [
+      await expectBalanceChange(() => assetManager.connect(lp).capitalOut(poolId, amountToWithdraw), tokens, [
         { account: assetManager.address, changes: { DAI: -amountToWithdraw } },
         { account: vault.address, changes: { DAI: amountToWithdraw } },
       ]);
@@ -134,7 +134,7 @@ describe('Single Pool Asset Manager', function () {
     it('allows anyone to deposit pool assets to an investment manager to get to the target investable %', async () => {
       const amountToDeposit = tokenInitialBalance.mul(bn(79)).div(bn(100));
 
-      await expectBalanceChange(() => assetManager.connect(lp).capitalIn(amountToDeposit), tokens, [
+      await expectBalanceChange(() => assetManager.connect(lp).capitalIn(poolId, amountToDeposit), tokens, [
         { account: assetManager.address, changes: { DAI: amountToDeposit } },
         { account: vault.address, changes: { DAI: -amountToDeposit } },
       ]);
@@ -143,13 +143,15 @@ describe('Single Pool Asset Manager', function () {
     it('prevents depositing pool assets to an investment manager over the target investable %', async () => {
       const amountToDeposit = tokenInitialBalance.mul(bn(99)).div(bn(100));
 
-      expect(assetManager.connect(lp).capitalIn(amountToDeposit)).to.be.revertedWith(OVER_INVESTMENT_REVERT_REASON);
+      expect(assetManager.connect(lp).capitalIn(poolId, amountToDeposit)).to.be.revertedWith(
+        OVER_INVESTMENT_REVERT_REASON
+      );
     });
 
     it("updates the pool's managed balance", async () => {
       const amountToDeposit = tokenInitialBalance.mul(bn(79)).div(bn(100));
 
-      await assetManager.connect(lp).capitalIn(amountToDeposit);
+      await assetManager.connect(lp).capitalIn(poolId, amountToDeposit);
 
       const { managed } = await vault.getPoolTokenInfo(poolId, tokens.DAI.address);
       const actualManagedBalance = await assetManager.readAUM();
@@ -160,10 +162,10 @@ describe('Single Pool Asset Manager', function () {
     describe('when token is fully invested', () => {
       const amountToDeposit = tokenInitialBalance.mul(bn(9)).div(bn(10));
       beforeEach(async () => {
-        await assetManager.connect(lp).capitalIn(amountToDeposit);
+        await assetManager.connect(lp).capitalIn(poolId, amountToDeposit);
 
         // should be perfectly balanced
-        const maxInvestableBalance = await assetManager.maxInvestableBalance();
+        const maxInvestableBalance = await assetManager.maxInvestableBalance(poolId);
         expect(maxInvestableBalance).to.equal(bn(0));
       });
 
@@ -175,16 +177,16 @@ describe('Single Pool Asset Manager', function () {
           await assetManager.connect(lp).setUnrealisedAUM(newAUM);
           await assetManager.connect(lp).realizeGains();
 
-          await assetManager.connect(lp).updateBalanceOfPool();
+          await assetManager.connect(lp).updateBalanceOfPool(poolId);
         });
 
         it("updates the pool's managed balance", async () => {
-          const maxInvestableBalance = await assetManager.maxInvestableBalance();
+          const maxInvestableBalance = await assetManager.maxInvestableBalance(poolId);
 
           // return a portion of the return to the vault to serve as a buffer
           const amountToWithdraw = maxInvestableBalance.abs();
 
-          await assetManager.connect(lp).capitalOut(amountToWithdraw);
+          await assetManager.connect(lp).capitalOut(poolId, amountToWithdraw);
 
           const { managed } = await vault.getPoolTokenInfo(poolId, tokens.DAI.address);
           const actualManagedBalance = await assetManager.readAUM();
@@ -193,12 +195,12 @@ describe('Single Pool Asset Manager', function () {
         });
 
         it('allows the pool to withdraw tokens to rebalance', async () => {
-          const maxInvestableBalance = await assetManager.maxInvestableBalance();
+          const maxInvestableBalance = await assetManager.maxInvestableBalance(poolId);
 
           // return a portion of the return to the vault to serve as a buffer
           const amountToWithdraw = maxInvestableBalance.abs();
 
-          await expectBalanceChange(() => assetManager.connect(lp).capitalOut(amountToWithdraw), tokens, [
+          await expectBalanceChange(() => assetManager.connect(lp).capitalOut(poolId, amountToWithdraw), tokens, [
             { account: assetManager.address, changes: { DAI: ['near', -amountToWithdraw] } },
             { account: vault.address, changes: { DAI: ['near', amountToWithdraw] } },
           ]);

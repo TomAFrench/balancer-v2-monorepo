@@ -24,14 +24,14 @@ contract MockAaveRewards is IAaveIncentivesController, ERC20("Staked Aave", "stk
         address, /* asset */
         uint256, /* userBalance */
         uint256 /* totalSupply */
-    ) external override {
+    ) external pure override {
         revert("unused");
     }
 
     function getRewardsBalance(
         address[] calldata, /* assets */
         address /* user */
-    ) external view override returns (uint256) {
+    ) external pure override returns (uint256) {
         revert("unused");
     }
 
