@@ -22,6 +22,9 @@ import "../BaseWeightedPool.sol";
 
 /**
  * @dev Weighted Pool with mutable weights, designed to support V2 Liquidity Bootstrapping
+ * Prevents non-owner joins, supports pausing trading (and starting paused), and allows
+ * the owner to schedule weights to change linearly toward ending values between starting and
+ * ending timestamps.
  */
 contract LiquidityBootstrappingPool is BaseWeightedPool, ReentrancyGuard {
     using FixedPoint for uint256;
@@ -30,9 +33,7 @@ contract LiquidityBootstrappingPool is BaseWeightedPool, ReentrancyGuard {
     // Type declarations
 
     // Use timestamps instead of blocks (used in V1 ConfigurableRightsPool)
-    // Could be miner variation, but should not make much difference,
-    // and timestamps are easier to understand / more GUI-friendly
-    // End weights are likewise packed as 4 uint64's
+    // End weights are packed as 4 uint64's, like the _normalizedWeights
     struct GradualUpdateParams {
         uint256 startTime;
         uint256 endTime;
@@ -41,14 +42,10 @@ contract LiquidityBootstrappingPool is BaseWeightedPool, ReentrancyGuard {
 
     // State variables
 
-    // Storage for the current ongoing weight change
-    // Start weights are in _normalizedWeights
-    GradualUpdateParams public gradualUpdateParams;
-
     // Minimum time over which to compute a gradual weight change (i.e., seconds between timestamps)
     uint256 public immutable minWeightChangeDuration;
 
-    // Setting this to false pauses swapping
+    // Setting this to false pauses trading
     bool public publicSwapEnabled;
 
     // Override base pool default of 8 tokens
@@ -61,6 +58,10 @@ contract LiquidityBootstrappingPool is BaseWeightedPool, ReentrancyGuard {
     // The protocol fees will always be charged using the token associated with the max weight in the pool.
     // Not worth packing - only referenced on join/exits
     uint256 private _maxWeightTokenIndex;
+
+    // Storage for the current ongoing weight change
+    // Start weights are in _normalizedWeights
+    GradualUpdateParams private _gradualUpdateParams;
 
     // Event declarations
 
@@ -149,9 +150,9 @@ contract LiquidityBootstrappingPool is BaseWeightedPool, ReentrancyGuard {
      * the given endWeights, over startTime to endTime
      */
     function updateWeightsGradually(
-        uint256[] memory endWeights,
         uint256 startTime,
-        uint256 endTime
+        uint256 endTime,
+        uint256[] memory endWeights
     ) external onlyOwner whenNotPaused nonReentrant {
         // solhint-disable-next-line not-rely-on-time
         uint256 currentTime = block.timestamp;
@@ -164,15 +165,15 @@ contract LiquidityBootstrappingPool is BaseWeightedPool, ReentrancyGuard {
         if (currentTime > startTime) {
             // This means the weight update should start ASAP
             // Moving the start time up prevents a big jump/discontinuity in the weights
-            gradualUpdateParams.startTime = currentTime;
+            _gradualUpdateParams.startTime = currentTime;
         } else {
-            gradualUpdateParams.startTime = startTime;
+            _gradualUpdateParams.startTime = startTime;
         }
 
         // Enforce a minimum time over which to make the changes
         // The also prevents endBlock <= startBlock
         _require(
-            endTime.sub(gradualUpdateParams.startTime) >= minWeightChangeDuration,
+            endTime.sub(_gradualUpdateParams.startTime) >= minWeightChangeDuration,
             Errors.WEIGHT_CHANGE_TIME_BELOW_MIN
         );
 
@@ -180,6 +181,7 @@ contract LiquidityBootstrappingPool is BaseWeightedPool, ReentrancyGuard {
         uint256 numTokens = _getTotalTokens();
         InputHelpers.ensureInputLengthMatch(numTokens, endWeights.length);
 
+        // Validate end weights
         uint256 sumWeights = 0;
 
         for (uint8 i = 0; i < numTokens; i++) {
@@ -191,7 +193,7 @@ contract LiquidityBootstrappingPool is BaseWeightedPool, ReentrancyGuard {
 
         _require(sumWeights == FixedPoint.ONE, Errors.NORMALIZED_WEIGHT_INVARIANT);
 
-        gradualUpdateParams.endTime = endTime;
+        _gradualUpdateParams.endTime = endTime;
 
         emit GradualUpdateScheduled(startTime, endTime);
     }
@@ -199,19 +201,35 @@ contract LiquidityBootstrappingPool is BaseWeightedPool, ReentrancyGuard {
     // Public functions
 
     /**
+     * @dev Return start time, end time, and endWeights as an array
+     */
+    function getGradualUpdateParams()
+        public
+        view
+        returns (
+            uint256 startTime,
+            uint256 endTime,
+            uint256[] memory endWeights
+        )
+    {
+        startTime = _gradualUpdateParams.startTime;
+        endTime = _gradualUpdateParams.endTime;
+        endWeights = _getFixedWeights(_gradualUpdateParams.endWeights);
+    }
+
+    /**
      * @dev Given that the weight callbacks are all view functions, how do we reset the startTime to 0
      * after an update has passed the end block?
      * This can be called on non-view functions that access weights. It doesn't *have* to be called, but
      * gas will generally be slightly higher if it isn't. It's not called on swaps, since the overhead is
      * likely worse than letting it read the end weights.
-     * It's public in case people want to call it externally (e.g., if there won't be any more joins/exits)
      */
     function pokeWeights() public {
         // solhint-disable-next-line not-rely-on-time
-        if (gradualUpdateParams.startTime != 0 && block.timestamp >= gradualUpdateParams.endTime) {
-            _normalizedWeights = gradualUpdateParams.endWeights;
+        if (_gradualUpdateParams.startTime != 0 && block.timestamp >= _gradualUpdateParams.endTime) {
+            _normalizedWeights = _gradualUpdateParams.endWeights;
 
-            gradualUpdateParams.startTime = 0;
+            _gradualUpdateParams.startTime = 0;
         }
     }
 
@@ -222,12 +240,11 @@ contract LiquidityBootstrappingPool is BaseWeightedPool, ReentrancyGuard {
      * in storage to the computed ones at the current timestamp.
      */
     function _fixCurrentNormalizedWeights(uint256 currentTime) internal {
-        if (gradualUpdateParams.startTime != 0) {
+        if (_gradualUpdateParams.startTime != 0) {
             // It could be over but nothing called pokeWeights, in which case just set them directly
-            if (currentTime >= gradualUpdateParams.endTime) {
-                 _normalizedWeights = gradualUpdateParams.endWeights;
-            }
-            else {
+            if (currentTime >= _gradualUpdateParams.endTime) {
+                _normalizedWeights = _gradualUpdateParams.endWeights;
+            } else {
                 // If it's still ongoing, need to use the dynamic weights
                 uint256[] memory normalizedWeights = _getDynamicWeights(currentTime);
                 for (uint8 i = 0; i < _getTotalTokens(); i++) {
@@ -235,7 +252,7 @@ contract LiquidityBootstrappingPool is BaseWeightedPool, ReentrancyGuard {
                 }
             }
 
-            gradualUpdateParams.startTime = 0;
+            _gradualUpdateParams.startTime = 0;
         }
     }
 
@@ -267,42 +284,34 @@ contract LiquidityBootstrappingPool is BaseWeightedPool, ReentrancyGuard {
         // solhint-disable-next-line not-rely-on-time
         uint256 currentTime = block.timestamp;
 
-        if (gradualUpdateParams.startTime == 0 || currentTime <= gradualUpdateParams.startTime) {
+        if (_gradualUpdateParams.startTime == 0 || currentTime <= _gradualUpdateParams.startTime) {
             return _normalizedWeights.decodeUint64(i * 64);
-        } else if (currentTime >= gradualUpdateParams.endTime) {
+        } else if (currentTime >= _gradualUpdateParams.endTime) {
             // If we are at or past the end block, use the end weights
-            // This is a view function, so cannot reset the gradualUpdateParams here
-            return gradualUpdateParams.endWeights.decodeUint64(i * 64);
+            // This is a view function, so cannot reset the _gradualUpdateParams here
+            return _gradualUpdateParams.endWeights.decodeUint64(i * 64);
         }
 
         // Need the dynamic weight
-        uint256 totalPeriod = gradualUpdateParams.endTime.sub(gradualUpdateParams.startTime);
-        uint256 secondsElapsed = currentTime.sub(gradualUpdateParams.startTime);
+        uint256 totalPeriod = _gradualUpdateParams.endTime.sub(_gradualUpdateParams.startTime);
+        uint256 secondsElapsed = currentTime.sub(_gradualUpdateParams.startTime);
 
         return _getDynamicWeight(i, totalPeriod, secondsElapsed);
     }
 
     /**
-     * @dev The intial weights are stored in _normalizedWeights. These "fixed" weights also serve as the
-     * "start weights" in a gradual weight change.
-     *
-     * So, if we are not doing a gradual weight change - or it hasn't started, the weights are just
-     * these initial/start weights
-     *
-     * If we are past the end of a weight change, the weights are equal to the endWeights (also fixed)
-     * If we are in the middle of a weight change, calculate and return the dynamic weights, based on the
-     * current timestamp
+     * @dev Same logic as `_getNormalizedWeight`: return an array of all weights
      */
     function _getNormalizedWeights() internal view override returns (uint256[] memory) {
         // solhint-disable-next-line not-rely-on-time
         uint256 currentTime = block.timestamp;
 
-        if (gradualUpdateParams.startTime == 0 || currentTime <= gradualUpdateParams.startTime) {
+        if (_gradualUpdateParams.startTime == 0 || currentTime <= _gradualUpdateParams.startTime) {
             return _getFixedWeights(_normalizedWeights);
-        } else if (currentTime >= gradualUpdateParams.endTime) {
+        } else if (currentTime >= _gradualUpdateParams.endTime) {
             // If we are at or past the end block, use the end weights
-            // This is a view function, so cannot reset the gradualUpdateParams here
-            return _getFixedWeights(gradualUpdateParams.endWeights);
+            // This is a view function, so cannot reset the _gradualUpdateParams here
+            return _getFixedWeights(_gradualUpdateParams.endWeights);
         }
 
         return _getDynamicWeights(currentTime);
@@ -406,11 +415,11 @@ contract LiquidityBootstrappingPool is BaseWeightedPool, ReentrancyGuard {
     }
 
     function _setEndWeight(uint256 weight, uint8 i) private {
-        gradualUpdateParams.endWeights = gradualUpdateParams.endWeights.insertUint64(weight, i * 64);
+        _gradualUpdateParams.endWeights = _gradualUpdateParams.endWeights.insertUint64(weight, i * 64);
     }
 
     /**
-     * @dev Return the fixed weights from the source (either _normalizedWeights or gradualUpdateParams.endWeights)
+     * @dev Return the fixed weights from the source (either _normalizedWeights or _gradualUpdateParams.endWeights)
      */
     function _getFixedWeights(bytes32 source) private view returns (uint256[] memory) {
         uint256 totalTokens = _getTotalTokens();
@@ -432,8 +441,8 @@ contract LiquidityBootstrappingPool is BaseWeightedPool, ReentrancyGuard {
         uint256[] memory normalizedWeights = new uint256[](totalTokens);
 
         // Only calculate this once
-        uint256 totalPeriod = gradualUpdateParams.endTime.sub(gradualUpdateParams.startTime);
-        uint256 secondsElapsed = currentTime.sub(gradualUpdateParams.startTime);
+        uint256 totalPeriod = _gradualUpdateParams.endTime.sub(_gradualUpdateParams.startTime);
+        uint256 secondsElapsed = currentTime.sub(_gradualUpdateParams.startTime);
 
         // prettier-ignore
         {
@@ -461,7 +470,7 @@ contract LiquidityBootstrappingPool is BaseWeightedPool, ReentrancyGuard {
         uint256 secondsElapsed
     ) private view returns (uint256) {
         uint256 startWeight = _normalizedWeights.decodeUint64(tokenIndex * 64);
-        uint256 endWeight = gradualUpdateParams.endWeights.decodeUint64(tokenIndex * 64);
+        uint256 endWeight = _gradualUpdateParams.endWeights.decodeUint64(tokenIndex * 64);
 
         // If no change, return fixed value
         if (startWeight == endWeight) {
