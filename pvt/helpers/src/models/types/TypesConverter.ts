@@ -80,7 +80,16 @@ export default {
   toLiquidityBootstrappingPoolDeployment(
     params: RawLiquidityBootstrappingPoolDeployment
   ): LiquidityBootstrappingPoolDeployment {
-    let { tokens, weights, swapFeePercentage, pauseWindowDuration, bufferPeriodDuration, owner, minWeightChangeDuration, initialPublicSwap } = params;
+    let {
+      tokens,
+      weights,
+      swapFeePercentage,
+      pauseWindowDuration,
+      bufferPeriodDuration,
+      owner,
+      minWeightChangeDuration,
+      initialPublicSwap,
+    } = params;
     if (!tokens) tokens = new TokenList();
     if (!weights) weights = Array(tokens.length).fill(fp(1));
     weights = toNormalizedWeights(weights.map(bn));
@@ -98,7 +107,7 @@ export default {
       bufferPeriodDuration,
       owner,
       minWeightChangeDuration,
-      initialPublicSwap
+      initialPublicSwap,
     };
   },
 

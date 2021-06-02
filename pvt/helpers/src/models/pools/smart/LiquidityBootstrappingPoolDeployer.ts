@@ -20,11 +20,30 @@ export default {
 
     const { tokens, weights, swapFeePercentage, minWeightChangeDuration, initialPublicSwap } = deployment;
     const poolId = await pool.getPoolId();
-    return new LiquidityBootstrappingPool(pool, poolId, vault, tokens, weights, swapFeePercentage, minWeightChangeDuration, initialPublicSwap);
+    return new LiquidityBootstrappingPool(
+      pool,
+      poolId,
+      vault,
+      tokens,
+      weights,
+      swapFeePercentage,
+      minWeightChangeDuration,
+      initialPublicSwap
+    );
   },
 
   async _deployStandalone(params: LiquidityBootstrappingPoolDeployment, vault: Vault): Promise<Contract> {
-    const { tokens, weights, swapFeePercentage, pauseWindowDuration, bufferPeriodDuration, owner, minWeightChangeDuration, initialPublicSwap, from } = params;
+    const {
+      tokens,
+      weights,
+      swapFeePercentage,
+      pauseWindowDuration,
+      bufferPeriodDuration,
+      owner,
+      minWeightChangeDuration,
+      initialPublicSwap,
+      from,
+    } = params;
     return deploy('v2-pool-weighted/LiquidityBootstrappingPool', {
       args: [
         vault.address,
@@ -37,7 +56,7 @@ export default {
         bufferPeriodDuration,
         TypesConverter.toAddress(owner),
         minWeightChangeDuration,
-        initialPublicSwap
+        initialPublicSwap,
       ],
       from,
     });
